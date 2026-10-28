@@ -6,18 +6,18 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 > **Asistente de voz neuronal humano y narrador ejecutivo de planes de implementación para Antigravity IDE y Antigravity 2.0.**
-> Diseñado para ejecutarse de forma silenciosa, autónoma y con **1 solo clic en Windows recién formateado**, sin requerir instalación manual de Python ni librerías adicionales.
+> Diseñado para ejecutarse de forma silenciosa, autónoma y con **1 solo clic en cualquier PC con Windows 10 u 11**, sin necesidad de instalar Python ni librerías adicionales.
 
 ---
 
 ## 🌟 Características Principales
 
-* 📋 **J.A.R.V.I.S. Plan Narrator**: Lee con voz ejecutiva natural los planes de implementación generados por la IA tras el comando `/plan`. Convierte diagramas Mermaid, alertas `> [!IMPORTANT]`, listas de tareas pendientes y rutas técnicas en una narrativa clara y ejecutiva.
+* 📋 **J.A.R.V.I.S. Plan Narrator**: Lee con voz ejecutiva natural los planes de implementación generados por la IA tras el comando `/plan`. Convierte diagramas Mermaid, alertas `> [!IMPORTANT]`, listas de tareas y rutas técnicas en una narrativa clara y ejecutiva.
 * 🎙️ **Voces Neuronales Gratuitas en Español**: Calidad de estudio impulsada por Microsoft Edge TTS (Dalia, Jorge, Álvaro, Elvira, Gonzalo, Alex, Tomás).
-* ⚡ **Botón Flotante Dinámico en Pantalla**: Píldora interactiva inteligente `[ 📋 Leer Plan ]` / `[ ⏸️ Pausar Plan ]` / `[ ▶️ Continuar Plan ]` inyectada directamente en Antigravity IDE y 2.0.
+* ⚡ **Botón Flotante Inteligente**: Píldora interactiva `[ 📋 Leer Plan ]` / `[ ⏸️ Pausar Plan ]` / `[ ▶️ Continuar Plan ]` inyectada directamente en Antigravity IDE y 2.0.
 * ⌨️ **Atajos de Teclado Globales**: Controla la voz desde cualquier aplicación sin perder el foco.
-* 🖥️ **Widget de Escritorio Flotante**: Mini barra minimalista siempre visible para pausar, silenciar o cambiar voces sobre la marcha.
-* 🔄 **Arranque Automático Silencioso**: Se integra en el Programador de Tareas de Windows para activarse automáticamente al iniciar sesión, sin ventanas negras de consola CMD.
+* 🖥️ **Widget de Escritorio Flotante**: Barra minimalista siempre visible para pausar, silenciar o cambiar voces sobre la marcha.
+* 🔄 **Arranque Automático Silencioso**: Se integra en el Programador de Tareas de Windows para activarse automáticamente al iniciar sesión, sin ventanas de consola CMD.
 
 ---
 
@@ -32,20 +32,27 @@
 
 ---
 
-## 🚀 Instalación en 1 Clic (Ideal tras formatear la PC)
+## 🚀 Instalación en 1 Clic (Sin configuración previa)
 
-1. Descarga o clona este repositorio.
-2. Abre la carpeta `installer/` y haz doble clic en:
-   **`install.bat`**
-3. El instalador automáticamente:
-   - Desplegará los archivos en `%LOCALAPPDATA%\AntigravityVoice`.
-   - Configurará el servicio en el Programador de Tareas de Windows (`AntigravityVoiceService`).
-   - Creará accesos directos en tu **Escritorio** y **Menú Inicio**.
-   - Iniciará el servicio y el widget flotante inmediatamente.
+1. Descarga o clona este repositorio:
+   ```bash
+   git clone https://github.com/demondark100/antigravity-voice.git
+   ```
+2. Ejecuta cualquiera de las dos opciones:
+   * **Opción A (Recomendada - Con ventana gráfica)**: Haz doble clic en **`AntigravityVoice_Setup.exe`**.
+   * **Opción B (Directa)**: Haz doble clic en **`Instalar_Antigravity_Voice.bat`**.
+3. El instalador se encargará de todo automáticamente:
+   - Despliega los archivos en `%LOCALAPPDATA%\AntigravityVoice`.
+   - Configura el arranque automático con Windows en segundo plano.
+   - Crea los accesos directos en tu **Escritorio** y **Menú Inicio**.
+   - Inicia el servicio de voz y el widget flotante inmediatamente.
+
+> [!TIP]
+> No necesitas instalar Python ni librerías adicionales. Los binarios incluidos en `bin/` son autónomos y listos para usar.
 
 ### 🗑️ Desinstalación Limpia
 Para desinstalar por completo el asistente sin dejar ningún residuo, haz doble clic en:
-`installer/uninstall.bat`
+**`Desinstalar_Antigravity_Voice.bat`** (o en `installer/uninstall.bat`).
 
 ---
 
@@ -76,40 +83,15 @@ El archivo de configuración reside en `%LOCALAPPDATA%\AntigravityVoice\config.j
 
 ---
 
-## 🔨 Cómo Compilar los Ejecutables Standalone (.exe)
+## 🔨 Cómo Recompilar los Ejecutables Standalone (Opcional)
 
-Si deseas recompilar los binarios nativos por tu cuenta:
+Si eres desarrollador y deseas modificar el código o recompilar los binarios nativos:
 1. Asegúrate de tener Python 3.10+ instalado.
-2. Haz doble clic en **`build.bat`** (o ejecuta `python build_dist.py`).
-3. Los ejecutables se generarán automáticamente en la carpeta `bin/`:
+2. Instala dependencias: `pip install -r requirements.txt`.
+3. Haz doble clic en **`build.bat`** (o ejecuta `python build_dist.py`).
+4. Los ejecutables se generarán automáticamente en `bin/`:
    - `bin/AntigravityVoiceService.exe`
    - `bin/AntigravityVoiceWidget.exe`
-
----
-
-## 🏛️ Arquitectura Modular (SOLID - Regla de Oro < 120 Líneas)
-
-El código fuente en `src/` está estructurado bajo el estándar universal **Modular Orchestrator SOLID**:
-
-* `src/voice_reader.py`: Orquestador principal ultraligero (< 40 líneas) que coordina los servicios sin acumular lógica pesada.
-* `src/utils/`:
-  - `config.py`: Rutas dinámicas universales, logger rotativo y comprobación de instancia única (Win32 Mutex).
-  - `text_cleaner.py`: Sanitización de texto Markdown y bloques de código para locución natural.
-  - `voice_list.py`: Catálogo de voces neuronales en español.
-* `src/services/`:
-  - `tts_synthesizer.py`: Cliente asíncrono de Edge-TTS con estrategia de reintento automático.
-  - `audio_player.py`: Motor de reproducción PyGame Mixer, pausas, reanudaciones y control de estados.
-  - `plan_narrator.py`: Gestor y narrador ejecutivo de planes de implementación de la IA.
-  - `playback_worker.py`: Hilo de procesamiento y descarga de audio en búfer.
-  - `http_server.py`: Servidor HTTP local multihilo (`127.0.0.1:49152`) con endpoints `/status`, `/plan/status`, `/speak`, `/replay`, `/stop`.
-  - `transcript_watcher.py`: Observador de archivos `transcript.jsonl` en los directorios `brain` de Antigravity.
-* `src/handlers/`:
-  - `cdp_injector.py`: Inyección automática de interfaz en Antigravity IDE y 2.0 vía Chrome DevTools Protocol.
-  - `hotkey_handler.py`: Listener de atajos de teclado globales (`Ctrl + Alt + P / S / R / M`).
-* `src/templates/`:
-  - `ui_injector.js`: Código JavaScript desacoplado para botones y pastillas flotantes en el IDE.
-  - `injector_loader.py`: Cargador de plantillas con soporte para entornos empaquetados (`sys._MEIPASS`).
-* `installer/`: Scripts de despliegue para Windows (Task Scheduler y VBScript shortcuts).
 
 ---
 
