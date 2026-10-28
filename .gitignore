@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller build outputs
+build/
+*.spec
+
+# Antigravity Voice runtime state
+.audio_cache/
+*.log
+.stop_trigger
+.replay_trigger
+.last_speech.txt
+
+# OS & Editors
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

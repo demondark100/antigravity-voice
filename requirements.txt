@@ -1,0 +1,6 @@
+edge-tts>=7.2.8
+pygame>=2.6.1
+pynput>=1.8.2
+aiohttp>=3.11.0
+pywin32>=308
+pyinstaller>=6.11.0

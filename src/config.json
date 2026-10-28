@@ -1,0 +1,11 @@
+{
+    "voice": "es-MX-DaliaNeural",
+    "rate": "+10%",
+    "volume": "+0%",
+    "announce_code_blocks": true,
+    "max_characters": 0,
+    "enabled": true,
+    "hotkeys_enabled": true,
+    "widget_x": 1265,
+    "widget_y": 863
+}
