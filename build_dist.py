@@ -26,7 +26,7 @@ def compile_binary(source_file: str, exe_name: str):
     print(f"\n==================================================")
     print(f"[*] Compilando {exe_name}.exe desde {source_file}...")
     print(f"==================================================")
-    
+    templates_dir = os.path.join(SRC_DIR, "templates")
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
@@ -37,6 +37,8 @@ def compile_binary(source_file: str, exe_name: str):
         "--distpath", BIN_DIR,
         "--workpath", os.path.join(BUILD_DIR, exe_name),
         "--specpath", BUILD_DIR,
+        "--paths", SRC_DIR,
+        "--add-data", f"{templates_dir};templates",
         source_file
     ]
     subprocess.check_call(cmd)

@@ -1,0 +1,416 @@
+(function() {
+    if (window.__agyVoiceBtnVersion === 5) return "already_injected";
+    window.__agyVoiceBtnVersion = 5;
+    window.__agyVoiceBtnInjected = true;
+
+    const SPEAKER_PATH = "M560-131v-82q90-26 145-100t55-168q0-94-55-168T560-749v-82q124 28 202 125.5T840-481q0 127-78 224.5T560-131ZM120-360v-240h160l200-200v640L280-360H120Zm440 40v-322q47 22 73.5 66t26.5 96q0 51-26.5 94.5T560-320ZM400-606l-86 86H200v80h114l86 86v-252ZM300-480Z";
+    const PAUSE_PATH = "M520-200v-560h240v560H520Zm-320 0v-560h240v560H200Zm400-80h80v-400h-80v400Zm-320 0h80v-400h-80v400Zm0-400v400-400Zm320 0v400-400Z";
+    const PLAY_PATH = "M320-200v-560l440 280-440 280Zm80-280Zm0 134 210-134-210-134v268Z";
+    const RESTART_PATH = "M480-80q-75 0-140.5-28.5t-114-77q-48.5-48.5-77-114T120-440h80q0 117 81.5 198.5T480-160q117 0 198.5-81.5T760-440q0-117-81.5-198.5T480-720h-6l62 62-56 58-160-160 160-160 56 58-62 62h6q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-440q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-80Z";
+    const CLIPBOARD_PATH = "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm280-590q17 0 28.5-11.5T520-830q0-17-11.5-28.5T480-870q-17 0-28.5 11.5T440-830q0 17 11.5 28.5T480-790ZM280-360h400v-60H280v60Zm0-120h400v-60H280v60Zm0-120h400v-60H280v60Z";
+
+    function createSvgIcon(pathData, size) {
+        if (!size) size = 16;
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("width", String(size));
+        svg.setAttribute("height", String(size));
+        svg.setAttribute("viewBox", "0 -960 960 960");
+        svg.setAttribute("fill", "currentColor");
+        svg.setAttribute("class", "agy-voice-icon");
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", pathData);
+        svg.appendChild(path);
+        return svg;
+    }
+
+    function setBtnIcon(btn, pathData, size) {
+        while (btn.firstChild) btn.removeChild(btn.firstChild);
+        btn.appendChild(createSvgIcon(pathData, size || 16));
+    }
+
+    function getTextSig(text) {
+        return (text || "").toLowerCase().replace(/[^a-z0-9áéíóúñü]+/g, "").slice(0, 60);
+    }
+
+    function setBtnState(btn, restartBtn, state) {
+        btn.dataset.voiceState = state;
+        if (state === "playing") {
+            setBtnIcon(btn, PAUSE_PATH, 16);
+            btn.style.color = "#38bdf8";
+            btn.title = "Pausar lectura de voz";
+            if (restartBtn) restartBtn.style.display = "inline-flex";
+        } else if (state === "paused") {
+            setBtnIcon(btn, PLAY_PATH, 16);
+            btn.style.color = "#4ade80";
+            btn.title = "Continuar lectura desde donde se quedó";
+            if (restartBtn) restartBtn.style.display = "inline-flex";
+        } else {
+            setBtnIcon(btn, SPEAKER_PATH, 16);
+            btn.style.color = "";
+            btn.title = "Leer respuesta en voz alta (J.A.R.V.I.S.)";
+            if (restartBtn) restartBtn.style.display = "none";
+        }
+    }
+
+    function extractTurnText(copyBtn) {
+        try {
+            const footer = copyBtn.closest('.pt-3') || (copyBtn.parentElement && copyBtn.parentElement.parentElement && copyBtn.parentElement.parentElement.parentElement && copyBtn.parentElement.parentElement.parentElement.parentElement);
+            let body = (footer && footer.previousElementSibling) ? footer.previousElementSibling : null;
+            if (!body) {
+                body = copyBtn.closest('[role="article"][aria-label="Agent response"]') || 
+                       (footer && footer.parentElement && footer.parentElement.querySelector('[role="article"][aria-label="Agent response"]'));
+            }
+            if (body) {
+                let blocks = Array.from(body.querySelectorAll('.px-2.py-1')).filter(function(el) {
+                    if (el.closest('button')) return false;
+                    if (el.closest('[data-testid="worked-for-collapsible"]')) return false;
+                    let p = el.parentElement;
+                    while (p && p !== body) {
+                        const prev = p.previousElementSibling;
+                        if (prev && prev.tagName === 'BUTTON' && (prev.hasAttribute('aria-expanded') || prev.getAttribute('data-testid') === 'worked-for-collapsible')) {
+                            return false;
+                        }
+                        p = p.parentElement;
+                    }
+                    return true;
+                });
+
+                if (blocks.length === 0) {
+                    const clone = body.cloneNode(true);
+                    clone.querySelectorAll('style, script, button, .select-none, [data-testid="worked-for-collapsible"]').forEach(function(s) { s.remove(); });
+                    clone.querySelectorAll('pre').forEach(function(pre) {
+                        pre.textContent = ' [He incluido un bloque de código en pantalla]. ';
+                    });
+                    const fullText = (clone.textContent || '').trim();
+                    if (fullText && fullText !== 'User cancelled agent execution.') {
+                        return fullText;
+                    }
+                }
+
+                const texts = blocks.map(function(b) {
+                    const clone = b.cloneNode(true);
+                    clone.querySelectorAll('style, script, button, .select-none').forEach(function(s) { s.remove(); });
+                    clone.querySelectorAll('pre').forEach(function(pre) {
+                        pre.textContent = ' [He incluido un bloque de código en pantalla]. ';
+                    });
+                    return (clone.textContent || '').trim();
+                }).filter(function(t) { return t && t !== 'User cancelled agent execution.'; });
+                if (texts.length > 0) {
+                    return texts.join('\n\n');
+                }
+            }
+        } catch (e) {}
+        return "";
+    }
+
+    function getOrCreateFloatingPlanPill() {
+        let pill = document.getElementById("agy-floating-plan-pill");
+        if (!pill) {
+            pill = document.createElement("div");
+            pill.id = "agy-floating-plan-pill";
+            pill.style.position = "fixed";
+            pill.style.bottom = "68px";
+            pill.style.right = "24px";
+            pill.style.zIndex = "999999";
+            pill.style.display = "none";
+            pill.style.alignItems = "center";
+            pill.style.gap = "8px";
+            pill.style.padding = "6px 14px";
+            pill.style.borderRadius = "20px";
+            pill.style.fontSize = "12px";
+            pill.style.fontWeight = "600";
+            pill.style.fontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, sans-serif";
+            pill.style.cursor = "pointer";
+            pill.style.userSelect = "none";
+            pill.style.transition = "all 0.2s ease";
+            pill.style.boxShadow = "0 4px 14px rgba(0,0,0,0.35)";
+            pill.style.backdropFilter = "blur(10px)";
+
+            const iconSpan = document.createElement("span");
+            iconSpan.className = "agy-plan-icon-span";
+            iconSpan.style.display = "inline-flex";
+            iconSpan.style.alignItems = "center";
+
+            const labelSpan = document.createElement("span");
+            labelSpan.className = "agy-plan-label-span";
+            labelSpan.textContent = "Leer Plan";
+
+            pill.appendChild(iconSpan);
+            pill.appendChild(labelSpan);
+            document.body.appendChild(pill);
+
+            pill.addEventListener("click", async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (pill.dataset.isBusy === "1") return;
+                pill.dataset.isBusy = "1";
+                setTimeout(function() { delete pill.dataset.isBusy; }, 600);
+
+                try {
+                    const res = await fetch("http://127.0.0.1:49152/plan/speak", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "toggle" })
+                    });
+                    const d = await res.json();
+                    updatePlanPillUI(d.state, d.is_reading_plan, d.plan_title || "Plan");
+                } catch (err) {}
+            });
+        }
+        return pill;
+    }
+
+    function updatePlanPillUI(state, isReading, planTitle) {
+        const pill = getOrCreateFloatingPlanPill();
+        if (!pill) return;
+        const iconSpan = pill.querySelector(".agy-plan-icon-span");
+        const labelSpan = pill.querySelector(".agy-plan-label-span");
+
+        while (iconSpan && iconSpan.firstChild) iconSpan.removeChild(iconSpan.firstChild);
+
+        if (isReading && state === "playing") {
+            pill.style.display = "inline-flex";
+            pill.style.background = "rgba(14, 116, 144, 0.92)";
+            pill.style.border = "1px solid #38bdf8";
+            pill.style.color = "#ffffff";
+            pill.title = "Pausar narración del plan (Ctrl + Alt + P)";
+            if (iconSpan) iconSpan.appendChild(createSvgIcon(PAUSE_PATH, 15));
+            if (labelSpan) labelSpan.textContent = "Pausar Plan";
+        } else if (isReading && state === "paused") {
+            pill.style.display = "inline-flex";
+            pill.style.background = "rgba(20, 83, 45, 0.92)";
+            pill.style.border = "1px solid #4ade80";
+            pill.style.color = "#ffffff";
+            pill.title = "Continuar narración del plan (Ctrl + Alt + P)";
+            if (iconSpan) iconSpan.appendChild(createSvgIcon(PLAY_PATH, 15));
+            if (labelSpan) labelSpan.textContent = "Continuar Plan";
+        } else {
+            pill.style.display = "inline-flex";
+            pill.style.background = "rgba(30, 41, 59, 0.92)";
+            pill.style.border = "1px solid rgba(148, 163, 184, 0.3)";
+            pill.style.color = "#e2e8f0";
+            pill.title = "Leer plan de implementación generado por la IA (Ctrl + Alt + P)";
+            if (iconSpan) iconSpan.appendChild(createSvgIcon(CLIPBOARD_PATH, 15));
+            if (labelSpan) labelSpan.textContent = "Leer Plan";
+        }
+    }
+
+    function injectArtifactButtons() {
+        const badges = document.querySelectorAll('button, a, div[role="button"], span');
+        badges.forEach(function(b) {
+            const txt = (b.textContent || '').trim();
+            const isPlanBadge = (txt.indexOf("Implementation Plan") !== -1 || txt.indexOf("Plan de Implementación") !== -1 || (txt.indexOf("plan") !== -1 && b.getAttribute("href") && b.getAttribute("href").indexOf(".md") !== -1));
+            if (isPlanBadge && !b.querySelector('.agy-inline-plan-btn') && !b.classList.contains('agy-inline-plan-btn')) {
+                if (b.parentElement && !b.parentElement.querySelector('.agy-inline-plan-btn')) {
+                    const btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className = "agy-inline-plan-btn";
+                    btn.style.marginLeft = "6px";
+                    btn.style.padding = "2px 6px";
+                    btn.style.borderRadius = "12px";
+                    btn.style.background = "rgba(56, 189, 248, 0.15)";
+                    btn.style.border = "1px solid rgba(56, 189, 248, 0.4)";
+                    btn.style.color = "#38bdf8";
+                    btn.style.cursor = "pointer";
+                    btn.style.display = "inline-flex";
+                    btn.style.alignItems = "center";
+                    btn.style.gap = "4px";
+                    btn.style.fontSize = "11px";
+                    btn.title = "Escuchar este plan con J.A.R.V.I.S. (Ctrl + Alt + P)";
+                    btn.appendChild(createSvgIcon(SPEAKER_PATH, 13));
+                    const s = document.createElement("span");
+                    s.textContent = "Voz";
+                    btn.appendChild(s);
+
+                    btn.addEventListener("click", async function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        try {
+                            await fetch("http://127.0.0.1:49152/plan/speak", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ action: "toggle" })
+                            });
+                        } catch (err) {}
+                    });
+
+                    b.parentElement.insertBefore(btn, b.nextSibling);
+                }
+            }
+        });
+    }
+
+    function injectButtons() {
+        injectArtifactButtons();
+        const copyBtns = document.querySelectorAll('button[aria-label="Copy"], button[aria-label="Copied"]');
+        copyBtns.forEach(function(copyBtn) {
+            const parent = copyBtn.parentElement;
+            if (!parent) return;
+            const isResponseFooter = copyBtn.closest('.pt-3') || parent.querySelector('button[aria-label="Good response"]');
+            if (!isResponseFooter) return;
+            if (parent.querySelector('.agy-voice-replay-btn')) return;
+
+            if (!copyBtn.dataset.agyTurnId) {
+                copyBtn.dataset.agyTurnId = 'turn_' + Math.random().toString(36).slice(2, 9) + '_' + Date.now();
+            }
+            const turnId = copyBtn.dataset.agyTurnId;
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = (copyBtn.className || '') + ' agy-voice-replay-btn';
+            btn.setAttribute('aria-label', 'Leer en voz alta');
+            btn.dataset.agyTurnId = turnId;
+
+            const restartBtn = document.createElement('button');
+            restartBtn.type = 'button';
+            restartBtn.className = (copyBtn.className || '') + ' agy-voice-restart-btn';
+            restartBtn.setAttribute('aria-label', 'Reiniciar lectura');
+            restartBtn.title = 'Reiniciar lectura desde el principio';
+            restartBtn.dataset.agyTurnId = turnId;
+            setBtnIcon(restartBtn, RESTART_PATH, 16);
+            restartBtn.style.display = "none";
+
+            setBtnState(btn, restartBtn, "idle");
+
+            btn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (btn.dataset.isBusy === "1") return;
+                btn.dataset.isBusy = "1";
+                setTimeout(function() { delete btn.dataset.isBusy; }, 600);
+
+                window.__agyActiveTurnId = turnId;
+                const text = extractTurnText(copyBtn);
+                setBtnState(btn, restartBtn, "playing");
+
+                document.querySelectorAll('.agy-voice-replay-btn').forEach(function(other) {
+                    if (other !== btn) {
+                        const otherRestart = other.parentElement && other.parentElement.querySelector('.agy-voice-restart-btn');
+                        setBtnState(other, otherRestart, "idle");
+                    }
+                });
+
+                try {
+                    const res = await fetch('http://127.0.0.1:49152/speak', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: text, action: 'toggle', turn_id: turnId })
+                    });
+                    const data = await res.json();
+                    if (data.state === "paused") {
+                        setBtnState(btn, restartBtn, "paused");
+                    } else if (data.state === "playing") {
+                        setBtnState(btn, restartBtn, "playing");
+                    } else {
+                        setBtnState(btn, restartBtn, "idle");
+                        if (window.__agyActiveTurnId === turnId) window.__agyActiveTurnId = null;
+                    }
+                } catch (err) {
+                    setBtnState(btn, restartBtn, "idle");
+                    if (window.__agyActiveTurnId === turnId) window.__agyActiveTurnId = null;
+                }
+            });
+
+            restartBtn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (restartBtn.dataset.isBusy === "1") return;
+                restartBtn.dataset.isBusy = "1";
+                setTimeout(function() { delete restartBtn.dataset.isBusy; }, 600);
+
+                window.__agyActiveTurnId = turnId;
+                const text = extractTurnText(copyBtn);
+                setBtnState(btn, restartBtn, "playing");
+
+                try {
+                    await fetch('http://127.0.0.1:49152/speak', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: text, restart: true, turn_id: turnId })
+                    });
+                    setBtnState(btn, restartBtn, "playing");
+                } catch (err) {
+                    setBtnState(btn, restartBtn, "idle");
+                    if (window.__agyActiveTurnId === turnId) window.__agyActiveTurnId = null;
+                }
+            });
+
+            parent.insertBefore(btn, copyBtn);
+            parent.insertBefore(restartBtn, copyBtn);
+        });
+    }
+
+    if (window.__agyVoiceInterval) clearInterval(window.__agyVoiceInterval);
+    window.__agyVoiceInterval = setInterval(async function() {
+        injectButtons();
+        try {
+            const res = await fetch('http://127.0.0.1:49152/status');
+            const data = await res.json();
+            const srvState = data.is_paused ? "paused" : (data.is_playing ? "playing" : "idle");
+            const activeTurnId = data.turn_id || window.__agyActiveTurnId || "";
+            const srvSig = data.sig || "";
+
+            const allBtns = Array.from(document.querySelectorAll('.agy-voice-replay-btn'));
+            let matchedBtn = null;
+
+            if (srvState !== "idle") {
+                if (activeTurnId) {
+                    matchedBtn = allBtns.find(function(b) { return b.dataset.agyTurnId === activeTurnId; });
+                }
+                if (!matchedBtn && srvSig) {
+                    for (let i = allBtns.length - 1; i >= 0; i--) {
+                        const b = allBtns[i];
+                        const cBtn = b.parentElement && b.parentElement.querySelector('button[aria-label="Copy"], button[aria-label="Copied"]');
+                        if (cBtn) {
+                            const sig = getTextSig(extractTurnText(cBtn));
+                            if (sig && (sig.startsWith(srvSig.slice(0, 35)) || srvSig.startsWith(sig.slice(0, 35)))) {
+                                matchedBtn = b;
+                                if (b.dataset.agyTurnId) window.__agyActiveTurnId = b.dataset.agyTurnId;
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else {
+                window.__agyActiveTurnId = null;
+            }
+
+            allBtns.forEach(function(b) {
+                const rBtn = b.parentElement && b.parentElement.querySelector('.agy-voice-restart-btn');
+                if (srvState === "idle") {
+                    setBtnState(b, rBtn, "idle");
+                } else if (b === matchedBtn) {
+                    setBtnState(b, rBtn, srvState);
+                } else {
+                    setBtnState(b, rBtn, "idle");
+                }
+            });
+
+            const planRes = await fetch('http://127.0.0.1:49152/plan/status');
+            const planData = await planRes.json();
+            const pill = getOrCreateFloatingPlanPill();
+            if (!planData.has_plan) {
+                if (pill) pill.style.display = "none";
+            } else {
+                const pState = planData.is_paused ? "paused" : (planData.is_playing ? "playing" : "idle");
+                updatePlanPillUI(pState, planData.is_reading_plan, planData.plan_title);
+            }
+        } catch (e) {}
+    }, 600);
+
+    if (window.__agyVoiceObserver) window.__agyVoiceObserver.disconnect();
+    const obs = new MutationObserver(function() { injectButtons(); });
+    window.__agyVoiceObserver = obs;
+    if (document.body) {
+        obs.observe(document.body, { childList: true, subtree: true });
+        injectButtons();
+    } else {
+        window.addEventListener('DOMContentLoaded', function() {
+            obs.observe(document.body, { childList: true, subtree: true });
+            injectButtons();
+        });
+    }
+    return "injected";
+})();

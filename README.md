@@ -87,12 +87,29 @@ Si deseas recompilar los binarios nativos por tu cuenta:
 
 ---
 
-## 🏛️ Arquitectura Modular (SOLID)
+## 🏛️ Arquitectura Modular (SOLID - Regla de Oro < 120 Líneas)
 
-* `src/voice_reader.py`: Orquestador principal, servidor HTTP local (`127.0.0.1:49152`), inyector CDP de interfaz y observador de conversaciones.
-* `src/plan_manager.py`: Limpieza semántica (`PlanTextCleaner`) y descubrimiento de planes Markdown.
-* `src/floating_control.py`: Interfaz de usuario de escritorio en Tkinter.
-* `installer/`: Scripts automatizados de ciclo de vida en Windows (Task Scheduler y VBScript shortcuts).
+El código fuente en `src/` está estructurado bajo el estándar universal **Modular Orchestrator SOLID**:
+
+* `src/voice_reader.py`: Orquestador principal ultraligero (< 40 líneas) que coordina los servicios sin acumular lógica pesada.
+* `src/utils/`:
+  - `config.py`: Rutas dinámicas universales, logger rotativo y comprobación de instancia única (Win32 Mutex).
+  - `text_cleaner.py`: Sanitización de texto Markdown y bloques de código para locución natural.
+  - `voice_list.py`: Catálogo de voces neuronales en español.
+* `src/services/`:
+  - `tts_synthesizer.py`: Cliente asíncrono de Edge-TTS con estrategia de reintento automático.
+  - `audio_player.py`: Motor de reproducción PyGame Mixer, pausas, reanudaciones y control de estados.
+  - `plan_narrator.py`: Gestor y narrador ejecutivo de planes de implementación de la IA.
+  - `playback_worker.py`: Hilo de procesamiento y descarga de audio en búfer.
+  - `http_server.py`: Servidor HTTP local multihilo (`127.0.0.1:49152`) con endpoints `/status`, `/plan/status`, `/speak`, `/replay`, `/stop`.
+  - `transcript_watcher.py`: Observador de archivos `transcript.jsonl` en los directorios `brain` de Antigravity.
+* `src/handlers/`:
+  - `cdp_injector.py`: Inyección automática de interfaz en Antigravity IDE y 2.0 vía Chrome DevTools Protocol.
+  - `hotkey_handler.py`: Listener de atajos de teclado globales (`Ctrl + Alt + P / S / R / M`).
+* `src/templates/`:
+  - `ui_injector.js`: Código JavaScript desacoplado para botones y pastillas flotantes en el IDE.
+  - `injector_loader.py`: Cargador de plantillas con soporte para entornos empaquetados (`sys._MEIPASS`).
+* `installer/`: Scripts de despliegue para Windows (Task Scheduler y VBScript shortcuts).
 
 ---
 

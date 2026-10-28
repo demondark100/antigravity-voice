@@ -1,0 +1,1 @@
+from templates.injector_loader import get_ui_injector_js
