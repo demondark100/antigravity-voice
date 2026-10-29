@@ -61,12 +61,15 @@ def find_latest_plan(brain_dirs: List[str], conv_id: Optional[str] = None) -> Op
                 for p in glob.glob(os.path.join(conv_folder, "*plan*.md")):
                     if not p.endswith(".metadata.json"):
                         candidates.append(p)
-    if not candidates:
-        for bdir in brain_dirs:
-            if os.path.isdir(bdir):
-                for p in glob.glob(os.path.join(bdir, "*", "*plan*.md")):
-                    if not p.endswith(".metadata.json"):
-                        candidates.append(p)
+        if candidates:
+            candidates.sort(key=os.path.getmtime, reverse=True)
+            return candidates[0]
+        return None
+    for bdir in brain_dirs:
+        if os.path.isdir(bdir):
+            for p in glob.glob(os.path.join(bdir, "*", "*plan*.md")):
+                if not p.endswith(".metadata.json"):
+                    candidates.append(p)
     if not candidates:
         return None
     candidates.sort(key=os.path.getmtime, reverse=True)

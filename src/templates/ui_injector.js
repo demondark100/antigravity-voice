@@ -1,13 +1,34 @@
 (function() {
-    if (window.__agyVoiceBtnVersion === 5) return "already_injected";
-    window.__agyVoiceBtnVersion = 5;
+    if (window.__agyVoiceBtnVersion === 6) return "already_injected";
+    window.__agyVoiceBtnVersion = 6;
     window.__agyVoiceBtnInjected = true;
+
+    if (window.__agyVoiceInterval) {
+        clearInterval(window.__agyVoiceInterval);
+        window.__agyVoiceInterval = null;
+    }
+    if (window.__agyVoiceObserver) {
+        window.__agyVoiceObserver.disconnect();
+        window.__agyVoiceObserver = null;
+    }
+
+    // Clean up any legacy v5 buttons
+    document.querySelectorAll('.agy-inline-plan-btn').forEach(function(b) {
+        if ((b.textContent || '').trim() === 'Voz') b.remove();
+    });
 
     const SPEAKER_PATH = "M560-131v-82q90-26 145-100t55-168q0-94-55-168T560-749v-82q124 28 202 125.5T840-481q0 127-78 224.5T560-131ZM120-360v-240h160l200-200v640L280-360H120Zm440 40v-322q47 22 73.5 66t26.5 96q0 51-26.5 94.5T560-320ZM400-606l-86 86H200v80h114l86 86v-252ZM300-480Z";
     const PAUSE_PATH = "M520-200v-560h240v560H520Zm-320 0v-560h240v560H200Zm400-80h80v-400h-80v400Zm-320 0h80v-400h-80v400Zm0-400v400-400Zm320 0v400-400Z";
     const PLAY_PATH = "M320-200v-560l440 280-440 280Zm80-280Zm0 134 210-134-210-134v268Z";
     const RESTART_PATH = "M480-80q-75 0-140.5-28.5t-114-77q-48.5-48.5-77-114T120-440h80q0 117 81.5 198.5T480-160q117 0 198.5-81.5T760-440q0-117-81.5-198.5T480-720h-6l62 62-56 58-160-160 160-160 56 58-62 62h6q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-440q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-80Z";
-    const CLIPBOARD_PATH = "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm280-590q17 0 28.5-11.5T520-830q0-17-11.5-28.5T480-870q-17 0-28.5 11.5T440-830q0 17 11.5 28.5T480-790ZM280-360h400v-60H280v60Zm0-120h400v-60H280v60Zm0-120h400v-60H280v60Z";
+
+    function getConvId() {
+        try {
+            const loc = window.location.pathname + window.location.search + window.location.hash;
+            const m = loc.match(/\/c\/([a-zA-Z0-9_-]{8,})/);
+            return m ? m[1] : null;
+        } catch (e) { return null; }
+    }
 
     function createSvgIcon(pathData, size) {
         if (!size) size = 16;
@@ -109,22 +130,21 @@
             pill = document.createElement("div");
             pill.id = "agy-floating-plan-pill";
             pill.style.position = "fixed";
-            pill.style.bottom = "68px";
-            pill.style.right = "24px";
-            pill.style.zIndex = "999999";
+            pill.style.bottom = "74px";
+            pill.style.right = "28px";
+            pill.style.zIndex = "9999999";
             pill.style.display = "none";
             pill.style.alignItems = "center";
             pill.style.gap = "8px";
-            pill.style.padding = "6px 14px";
-            pill.style.borderRadius = "20px";
+            pill.style.padding = "7px 15px";
+            pill.style.borderRadius = "24px";
             pill.style.fontSize = "12px";
             pill.style.fontWeight = "600";
             pill.style.fontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, sans-serif";
             pill.style.cursor = "pointer";
             pill.style.userSelect = "none";
-            pill.style.transition = "all 0.2s ease";
-            pill.style.boxShadow = "0 4px 14px rgba(0,0,0,0.35)";
-            pill.style.backdropFilter = "blur(10px)";
+            pill.style.transition = "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)";
+            pill.style.backdropFilter = "blur(12px)";
 
             const iconSpan = document.createElement("span");
             iconSpan.className = "agy-plan-icon-span";
@@ -133,7 +153,7 @@
 
             const labelSpan = document.createElement("span");
             labelSpan.className = "agy-plan-label-span";
-            labelSpan.textContent = "Leer Plan";
+            labelSpan.textContent = "Leer Plan (IA)";
 
             pill.appendChild(iconSpan);
             pill.appendChild(labelSpan);
@@ -150,7 +170,7 @@
                     const res = await fetch("http://127.0.0.1:49152/plan/speak", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action: "toggle" })
+                        body: JSON.stringify({ action: "toggle", conv_id: getConvId() })
                     });
                     const d = await res.json();
                     updatePlanPillUI(d.state, d.is_reading_plan, d.plan_title || "Plan");
@@ -170,78 +190,151 @@
 
         if (isReading && state === "playing") {
             pill.style.display = "inline-flex";
-            pill.style.background = "rgba(14, 116, 144, 0.92)";
-            pill.style.border = "1px solid #38bdf8";
+            pill.style.background = "linear-gradient(135deg, rgba(6, 78, 59, 0.95) 0%, rgba(5, 150, 105, 0.95) 100%)";
+            pill.style.border = "1px solid #34d399";
+            pill.style.boxShadow = "0 4px 18px rgba(16, 185, 129, 0.5)";
             pill.style.color = "#ffffff";
             pill.title = "Pausar narración del plan (Ctrl + Alt + P)";
             if (iconSpan) iconSpan.appendChild(createSvgIcon(PAUSE_PATH, 15));
             if (labelSpan) labelSpan.textContent = "Pausar Plan";
         } else if (isReading && state === "paused") {
             pill.style.display = "inline-flex";
-            pill.style.background = "rgba(20, 83, 45, 0.92)";
-            pill.style.border = "1px solid #4ade80";
+            pill.style.background = "linear-gradient(135deg, rgba(120, 53, 15, 0.95) 0%, rgba(217, 119, 6, 0.95) 100%)";
+            pill.style.border = "1px solid #fbbf24";
+            pill.style.boxShadow = "0 4px 18px rgba(245, 158, 11, 0.5)";
             pill.style.color = "#ffffff";
             pill.title = "Continuar narración del plan (Ctrl + Alt + P)";
             if (iconSpan) iconSpan.appendChild(createSvgIcon(PLAY_PATH, 15));
             if (labelSpan) labelSpan.textContent = "Continuar Plan";
         } else {
             pill.style.display = "inline-flex";
-            pill.style.background = "rgba(30, 41, 59, 0.92)";
-            pill.style.border = "1px solid rgba(148, 163, 184, 0.3)";
-            pill.style.color = "#e2e8f0";
-            pill.title = "Leer plan de implementación generado por la IA (Ctrl + Alt + P)";
-            if (iconSpan) iconSpan.appendChild(createSvgIcon(CLIPBOARD_PATH, 15));
-            if (labelSpan) labelSpan.textContent = "Leer Plan";
+            pill.style.background = "linear-gradient(135deg, rgba(15, 23, 42, 0.94) 0%, rgba(30, 41, 59, 0.94) 100%)";
+            pill.style.border = "1px solid rgba(56, 189, 248, 0.65)";
+            pill.style.boxShadow = "0 4px 18px rgba(14, 165, 233, 0.4)";
+            pill.style.color = "#38bdf8";
+            pill.title = "Escuchar el plan de implementación con voz IA (Ctrl + Alt + P)";
+            if (iconSpan) iconSpan.appendChild(createSvgIcon(SPEAKER_PATH, 15));
+            if (labelSpan) labelSpan.textContent = "Leer Plan (IA)";
         }
     }
 
-    function injectArtifactButtons() {
-        const badges = document.querySelectorAll('button, a, div[role="button"], span');
-        badges.forEach(function(b) {
-            const txt = (b.textContent || '').trim();
-            const isPlanBadge = (txt.indexOf("Implementation Plan") !== -1 || txt.indexOf("Plan de Implementación") !== -1 || (txt.indexOf("plan") !== -1 && b.getAttribute("href") && b.getAttribute("href").indexOf(".md") !== -1));
-            if (isPlanBadge && !b.querySelector('.agy-inline-plan-btn') && !b.classList.contains('agy-inline-plan-btn')) {
-                if (b.parentElement && !b.parentElement.querySelector('.agy-inline-plan-btn')) {
-                    const btn = document.createElement("button");
-                    btn.type = "button";
-                    btn.className = "agy-inline-plan-btn";
-                    btn.style.marginLeft = "6px";
-                    btn.style.padding = "2px 6px";
-                    btn.style.borderRadius = "12px";
-                    btn.style.background = "rgba(56, 189, 248, 0.15)";
-                    btn.style.border = "1px solid rgba(56, 189, 248, 0.4)";
-                    btn.style.color = "#38bdf8";
-                    btn.style.cursor = "pointer";
-                    btn.style.display = "inline-flex";
-                    btn.style.alignItems = "center";
-                    btn.style.gap = "4px";
-                    btn.style.fontSize = "11px";
-                    btn.title = "Escuchar este plan con J.A.R.V.I.S. (Ctrl + Alt + P)";
-                    btn.appendChild(createSvgIcon(SPEAKER_PATH, 13));
-                    const s = document.createElement("span");
-                    s.textContent = "Voz";
-                    btn.appendChild(s);
+    function injectArtifactCardButtons() {
+        const cards = document.querySelectorAll('.artifact-card');
+        cards.forEach(function(card) {
+            if (card.querySelector('.agy-inline-plan-btn')) return;
+            const uriBtn = card.querySelector('[data-uri]');
+            const dataUri = uriBtn ? (uriBtn.getAttribute('data-uri') || '') : '';
+            const text = (card.textContent || '').toLowerCase();
+            const isPlan = dataUri.toLowerCase().includes('plan') || text.includes('plan') || dataUri.toLowerCase().endsWith('.md');
+            if (!isPlan) return;
 
-                    btn.addEventListener("click", async function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        try {
-                            await fetch("http://127.0.0.1:49152/plan/speak", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ action: "toggle" })
-                            });
-                        } catch (err) {}
-                    });
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "agy-inline-plan-btn";
+            btn.style.display = "inline-flex";
+            btn.style.alignItems = "center";
+            btn.style.gap = "6px";
+            btn.style.padding = "3px 10px";
+            btn.style.marginTop = "6px";
+            btn.style.borderRadius = "9999px";
+            btn.style.background = "rgba(14, 165, 233, 0.16)";
+            btn.style.border = "1px solid rgba(56, 189, 248, 0.6)";
+            btn.style.color = "#38bdf8";
+            btn.style.fontSize = "12px";
+            btn.style.fontWeight = "600";
+            btn.style.cursor = "pointer";
+            btn.style.transition = "all 0.15s ease";
+            btn.title = "Escuchar este plan con voz IA (Ctrl + Alt + P)";
+            btn.appendChild(createSvgIcon(SPEAKER_PATH, 13));
 
-                    b.parentElement.insertBefore(btn, b.nextSibling);
+            const s = document.createElement("span");
+            s.textContent = "Escuchar Plan";
+            btn.appendChild(s);
+
+            btn.addEventListener("mouseenter", function() {
+                btn.style.background = "rgba(14, 165, 233, 0.3)";
+                btn.style.borderColor = "#38bdf8";
+            });
+            btn.addEventListener("mouseleave", function() {
+                btn.style.background = "rgba(14, 165, 233, 0.16)";
+                btn.style.borderColor = "rgba(56, 189, 248, 0.6)";
+            });
+
+            btn.addEventListener("click", async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (btn.dataset.isBusy === "1") return;
+                btn.dataset.isBusy = "1";
+                setTimeout(function() { delete btn.dataset.isBusy; }, 600);
+
+                let planPath = null;
+                if (dataUri) {
+                    planPath = decodeURIComponent(dataUri.replace(/^file:\/\/\/?/, ''));
                 }
-            }
+                try {
+                    await fetch("http://127.0.0.1:49152/plan/speak", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "toggle", plan_path: planPath, conv_id: getConvId() })
+                    });
+                } catch (err) {}
+            });
+
+            card.appendChild(btn);
+        });
+    }
+
+    function injectReviewProceedButtons() {
+        const candidates = document.querySelectorAll('.review-button, button');
+        candidates.forEach(function(btn) {
+            const txt = (btn.textContent || '').trim();
+            if (!/^(Review|Proceed|Review\s*v)$/i.test(txt)) return;
+            const parent = btn.parentElement;
+            if (!parent || parent.querySelector('.agy-header-plan-btn')) return;
+
+            const agyBtn = document.createElement("button");
+            agyBtn.type = "button";
+            agyBtn.className = "agy-header-plan-btn";
+            agyBtn.style.display = "inline-flex";
+            agyBtn.style.alignItems = "center";
+            agyBtn.style.gap = "5px";
+            agyBtn.style.padding = "3px 10px";
+            agyBtn.style.marginRight = "6px";
+            agyBtn.style.marginLeft = "6px";
+            agyBtn.style.borderRadius = "6px";
+            agyBtn.style.background = "#0284c7";
+            agyBtn.style.border = "1px solid #38bdf8";
+            agyBtn.style.color = "#ffffff";
+            agyBtn.style.fontSize = "12px";
+            agyBtn.style.fontWeight = "600";
+            agyBtn.style.cursor = "pointer";
+            agyBtn.title = "Escuchar plan de implementación con voz IA (Ctrl + Alt + P)";
+            agyBtn.appendChild(createSvgIcon(SPEAKER_PATH, 13));
+
+            const label = document.createElement("span");
+            label.textContent = "Escuchar Plan";
+            agyBtn.appendChild(label);
+
+            agyBtn.addEventListener("click", async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                    await fetch("http://127.0.0.1:49152/plan/speak", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "toggle", conv_id: getConvId() })
+                    });
+                } catch (err) {}
+            });
+
+            parent.insertBefore(agyBtn, btn);
         });
     }
 
     function injectButtons() {
-        injectArtifactButtons();
+        injectArtifactCardButtons();
+        injectReviewProceedButtons();
+
         const copyBtns = document.querySelectorAll('button[aria-label="Copy"], button[aria-label="Copied"]');
         copyBtns.forEach(function(copyBtn) {
             const parent = copyBtn.parentElement;
@@ -388,7 +481,9 @@
                 }
             });
 
-            const planRes = await fetch('http://127.0.0.1:49152/plan/status');
+            const convId = getConvId();
+            const planUrl = convId ? `http://127.0.0.1:49152/plan/status?conv_id=${encodeURIComponent(convId)}` : 'http://127.0.0.1:49152/plan/status';
+            const planRes = await fetch(planUrl);
             const planData = await planRes.json();
             const pill = getOrCreateFloatingPlanPill();
             if (!planData.has_plan) {

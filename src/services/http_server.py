@@ -1,6 +1,7 @@
 import time
 import json
 import threading
+from urllib.parse import urlparse, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from utils.config import log, HTTP_PORT
 from plan_manager import get_plan_info
@@ -23,7 +24,9 @@ def create_handler_class(player):
 
         def do_GET(self):
             if self.path.startswith("/plan/status"):
-                path, title = get_plan_info(player.brain_dirs)
+                qs = parse_qs(urlparse(self.path).query)
+                conv_id = qs.get("conv_id", [None])[0]
+                path, title = get_plan_info(player.brain_dirs, conv_id)
                 self._send_cors(200)
                 self.wfile.write(json.dumps({
                     "has_plan": bool(path), "plan_file": path or "", "plan_title": title,

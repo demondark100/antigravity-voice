@@ -6,7 +6,8 @@ from plan_manager import PlanTextCleaner, find_latest_plan
 class PlanNarrator:
     @staticmethod
     def toggle_plan(player, plan_path: Optional[str] = None, force_restart: bool = False, conv_id: Optional[str] = None) -> str:
-        if player.is_reading_plan and not force_restart:
+        same_plan = not plan_path or (player.current_plan_path and os.path.abspath(plan_path) == os.path.abspath(player.current_plan_path))
+        if player.is_reading_plan and not force_restart and same_plan:
             if player.is_playing and not player.is_paused:
                 player.pause_playback()
                 return "paused"
