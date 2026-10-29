@@ -1,6 +1,6 @@
 (function() {
-    if (window.__agyVoiceBtnVersion === 6) return "already_injected";
-    window.__agyVoiceBtnVersion = 6;
+    if (window.__agyVoiceBtnVersion === 7) return "already_injected";
+    window.__agyVoiceBtnVersion = 7;
     window.__agyVoiceBtnInjected = true;
 
     if (window.__agyVoiceInterval) {
@@ -25,9 +25,25 @@
     function getConvId() {
         try {
             const loc = window.location.pathname + window.location.search + window.location.hash;
-            const m = loc.match(/\/c\/([a-zA-Z0-9_-]{8,})/);
-            return m ? m[1] : null;
+            let m = loc.match(/\/c\/([a-zA-Z0-9_-]{8,})/);
+            if (m) return m[1];
+            m = loc.match(/cascadeId=([a-zA-Z0-9_-]{8,})/);
+            if (m) return m[1];
+            m = loc.match(/brain[\/\\]([a-zA-Z0-9_-]{8,})/);
+            if (m) return m[1];
+            return null;
         } catch (e) { return null; }
+    }
+
+    function getPlanPath() {
+        try {
+            const loc = window.location.pathname + window.location.search + window.location.hash;
+            const m = loc.match(/uri=([^&]+)/);
+            if (m) {
+                return decodeURIComponent(decodeURIComponent(m[1])).replace(/^file:\/\/\/?/, '');
+            }
+        } catch (e) {}
+        return null;
     }
 
     function createSvgIcon(pathData, size) {
@@ -294,13 +310,13 @@
 
             const agyBtn = document.createElement("button");
             agyBtn.type = "button";
-            agyBtn.className = "agy-header-plan-btn";
+            agyBtn.className = "agy-header-plan-btn agy-button agy-button-xs inline-flex items-center font-medium transition-colors select-none outline-none cursor-pointer justify-center border-none h-6 text-xs rounded-md gap-1 px-2.5 mr-2";
             agyBtn.style.display = "inline-flex";
             agyBtn.style.alignItems = "center";
             agyBtn.style.gap = "5px";
             agyBtn.style.padding = "3px 10px";
             agyBtn.style.marginRight = "6px";
-            agyBtn.style.marginLeft = "6px";
+            agyBtn.style.marginLeft = "2px";
             agyBtn.style.borderRadius = "6px";
             agyBtn.style.background = "#0284c7";
             agyBtn.style.border = "1px solid #38bdf8";
@@ -312,17 +328,21 @@
             agyBtn.appendChild(createSvgIcon(SPEAKER_PATH, 13));
 
             const label = document.createElement("span");
+            label.className = "agy-header-plan-label";
             label.textContent = "Escuchar Plan";
             agyBtn.appendChild(label);
 
             agyBtn.addEventListener("click", async function(e) {
                 e.preventDefault();
                 e.stopPropagation();
+                if (agyBtn.dataset.isBusy === "1") return;
+                agyBtn.dataset.isBusy = "1";
+                setTimeout(function() { delete agyBtn.dataset.isBusy; }, 600);
                 try {
                     await fetch("http://127.0.0.1:49152/plan/speak", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action: "toggle", conv_id: getConvId() })
+                        body: JSON.stringify({ action: "toggle", plan_path: getPlanPath(), conv_id: getConvId() })
                     });
                 } catch (err) {}
             });
@@ -486,12 +506,39 @@
             const planRes = await fetch(planUrl);
             const planData = await planRes.json();
             const pill = getOrCreateFloatingPlanPill();
+            const pState = planData.is_paused ? "paused" : (planData.is_playing ? "playing" : "idle");
             if (!planData.has_plan) {
                 if (pill) pill.style.display = "none";
             } else {
-                const pState = planData.is_paused ? "paused" : (planData.is_playing ? "playing" : "idle");
                 updatePlanPillUI(pState, planData.is_reading_plan, planData.plan_title);
             }
+
+            const headerBtns = document.querySelectorAll('.agy-header-plan-btn');
+            headerBtns.forEach(function(hBtn) {
+                const hLabel = hBtn.querySelector('.agy-header-plan-label');
+                if (planData.is_reading_plan && planData.is_playing && !planData.is_paused) {
+                    hBtn.style.background = "#059669";
+                    hBtn.style.borderColor = "#34d399";
+                    hBtn.title = "Pausar narración del plan (Ctrl + Alt + P)";
+                    if (hLabel) hLabel.textContent = "Pausar Plan";
+                    setBtnIcon(hBtn, PAUSE_PATH, 13);
+                    if (hLabel) hBtn.appendChild(hLabel);
+                } else if (planData.is_reading_plan && planData.is_paused) {
+                    hBtn.style.background = "#d97706";
+                    hBtn.style.borderColor = "#fbbf24";
+                    hBtn.title = "Continuar narración del plan (Ctrl + Alt + P)";
+                    if (hLabel) hLabel.textContent = "Continuar Plan";
+                    setBtnIcon(hBtn, PLAY_PATH, 13);
+                    if (hLabel) hBtn.appendChild(hLabel);
+                } else {
+                    hBtn.style.background = "#0284c7";
+                    hBtn.style.borderColor = "#38bdf8";
+                    hBtn.title = "Escuchar plan de implementación con voz IA (Ctrl + Alt + P)";
+                    if (hLabel) hLabel.textContent = "Escuchar Plan";
+                    setBtnIcon(hBtn, SPEAKER_PATH, 13);
+                    if (hLabel) hBtn.appendChild(hLabel);
+                }
+            });
         } catch (e) {}
     }, 600);
 

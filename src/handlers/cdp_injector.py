@@ -21,7 +21,11 @@ async def inject_into_port(port: int, script_code: str):
         return
 
     for t in targets:
-        if t.get("type") != "page":
+        t_type = t.get("type")
+        url = t.get("url", "")
+        if t_type not in ("page", "iframe"):
+            continue
+        if not (url.startswith("http://") or url.startswith("https://")):
             continue
         ws_url = t.get("webSocketDebuggerUrl")
         if not ws_url:
