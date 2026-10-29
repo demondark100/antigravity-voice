@@ -45,15 +45,21 @@ def start_cdp_button_injector():
         while True:
             script_code = get_ui_injector_js()
             if script_code:
+                ports_to_try = {61603, 61604}
                 for pf in PORT_FILES:
                     if os.path.exists(pf):
                         try:
                             with open(pf, "r", encoding="utf-8") as f:
                                 port_line = f.readline().strip()
                             if port_line.isdigit():
-                                asyncio.run(inject_into_port(int(port_line), script_code))
+                                ports_to_try.add(int(port_line))
                         except Exception:
                             pass
+                for port in ports_to_try:
+                    try:
+                        asyncio.run(inject_into_port(port, script_code))
+                    except Exception:
+                        pass
             time.sleep(2.5)
 
     threading.Thread(target=_loop, daemon=True).start()
