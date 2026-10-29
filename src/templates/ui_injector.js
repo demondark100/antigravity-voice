@@ -1,6 +1,6 @@
 (function() {
-    if (window.__agyVoiceBtnVersion === 7) return "already_injected";
-    window.__agyVoiceBtnVersion = 7;
+    if (window.__agyVoiceBtnVersion === 10) return "already_injected";
+    window.__agyVoiceBtnVersion = 10;
     window.__agyVoiceBtnInjected = true;
 
     if (window.__agyVoiceInterval) {
@@ -12,7 +12,12 @@
         window.__agyVoiceObserver = null;
     }
 
-    // Clean up any legacy v5 buttons
+    // Clean up any legacy floating pills and v5 buttons
+    const oldPill = document.getElementById("agy-floating-plan-pill");
+    if (oldPill) oldPill.remove();
+    document.querySelectorAll('.agy-doc-plan-btn').forEach(function(b) {
+        if (!b.querySelector('.agy-doc-plan-label')) b.remove();
+    });
     document.querySelectorAll('.agy-inline-plan-btn').forEach(function(b) {
         if ((b.textContent || '').trim() === 'Voz') b.remove();
     });
@@ -140,101 +145,63 @@
         return "";
     }
 
-    function getOrCreateFloatingPlanPill() {
-        let pill = document.getElementById("agy-floating-plan-pill");
-        if (!pill) {
-            pill = document.createElement("div");
-            pill.id = "agy-floating-plan-pill";
-            pill.style.position = "fixed";
-            pill.style.bottom = "74px";
-            pill.style.right = "28px";
-            pill.style.zIndex = "9999999";
-            pill.style.display = "none";
-            pill.style.alignItems = "center";
-            pill.style.gap = "8px";
-            pill.style.padding = "7px 15px";
-            pill.style.borderRadius = "24px";
-            pill.style.fontSize = "12px";
-            pill.style.fontWeight = "600";
-            pill.style.fontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, sans-serif";
-            pill.style.cursor = "pointer";
-            pill.style.userSelect = "none";
-            pill.style.transition = "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)";
-            pill.style.backdropFilter = "blur(12px)";
+    function removeFloatingPlanPill() {
+        const pill = document.getElementById("agy-floating-plan-pill");
+        if (pill) pill.remove();
+    }
 
-            const iconSpan = document.createElement("span");
-            iconSpan.className = "agy-plan-icon-span";
-            iconSpan.style.display = "inline-flex";
-            iconSpan.style.alignItems = "center";
+    function injectArtifactCardButtons() {
+        // Antigravity 2.0 artifact list rows
+        const rows = document.querySelectorAll('[data-testid="artifact-row"]');
+        rows.forEach(function(row) {
+            if (row.querySelector('.agy-row-plan-btn')) return;
+            const text = (row.textContent || '').toLowerCase();
+            const title = (row.title || '').toLowerCase();
+            const isPlan = text.includes('plan') || title.includes('plan') || text.includes('.md');
+            if (!isPlan) return;
 
-            const labelSpan = document.createElement("span");
-            labelSpan.className = "agy-plan-label-span";
-            labelSpan.textContent = "Leer Plan (IA)";
+            const btn = document.createElement("span");
+            btn.className = "agy-row-plan-btn";
+            btn.style.display = "inline-flex";
+            btn.style.alignItems = "center";
+            btn.style.justifyContent = "center";
+            btn.style.marginLeft = "auto";
+            btn.style.padding = "2px 7px";
+            btn.style.borderRadius = "6px";
+            btn.style.background = "rgba(14, 165, 233, 0.2)";
+            btn.style.border = "1px solid rgba(56, 189, 248, 0.6)";
+            btn.style.color = "#38bdf8";
+            btn.style.fontSize = "11px";
+            btn.style.fontWeight = "600";
+            btn.style.cursor = "pointer";
+            btn.style.gap = "4px";
+            btn.title = "Escuchar este plan con voz IA (Ctrl + Alt + P)";
+            btn.appendChild(createSvgIcon(SPEAKER_PATH, 12));
 
-            pill.appendChild(iconSpan);
-            pill.appendChild(labelSpan);
-            document.body.appendChild(pill);
+            const lbl = document.createElement("span");
+            lbl.className = "agy-row-plan-label";
+            lbl.textContent = "Leer";
+            btn.appendChild(lbl);
 
-            pill.addEventListener("click", async function(e) {
+            btn.addEventListener("click", async function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (pill.dataset.isBusy === "1") return;
-                pill.dataset.isBusy = "1";
-                setTimeout(function() { delete pill.dataset.isBusy; }, 600);
-
+                if (btn.dataset.isBusy === "1") return;
+                btn.dataset.isBusy = "1";
+                setTimeout(function() { delete btn.dataset.isBusy; }, 600);
                 try {
-                    const res = await fetch("http://127.0.0.1:49152/plan/speak", {
+                    await fetch("http://127.0.0.1:49152/plan/speak", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ action: "toggle", conv_id: getConvId() })
                     });
-                    const d = await res.json();
-                    updatePlanPillUI(d.state, d.is_reading_plan, d.plan_title || "Plan");
                 } catch (err) {}
             });
-        }
-        return pill;
-    }
 
-    function updatePlanPillUI(state, isReading, planTitle) {
-        const pill = getOrCreateFloatingPlanPill();
-        if (!pill) return;
-        const iconSpan = pill.querySelector(".agy-plan-icon-span");
-        const labelSpan = pill.querySelector(".agy-plan-label-span");
+            row.appendChild(btn);
+        });
 
-        while (iconSpan && iconSpan.firstChild) iconSpan.removeChild(iconSpan.firstChild);
-
-        if (isReading && state === "playing") {
-            pill.style.display = "inline-flex";
-            pill.style.background = "linear-gradient(135deg, rgba(6, 78, 59, 0.95) 0%, rgba(5, 150, 105, 0.95) 100%)";
-            pill.style.border = "1px solid #34d399";
-            pill.style.boxShadow = "0 4px 18px rgba(16, 185, 129, 0.5)";
-            pill.style.color = "#ffffff";
-            pill.title = "Pausar narración del plan (Ctrl + Alt + P)";
-            if (iconSpan) iconSpan.appendChild(createSvgIcon(PAUSE_PATH, 15));
-            if (labelSpan) labelSpan.textContent = "Pausar Plan";
-        } else if (isReading && state === "paused") {
-            pill.style.display = "inline-flex";
-            pill.style.background = "linear-gradient(135deg, rgba(120, 53, 15, 0.95) 0%, rgba(217, 119, 6, 0.95) 100%)";
-            pill.style.border = "1px solid #fbbf24";
-            pill.style.boxShadow = "0 4px 18px rgba(245, 158, 11, 0.5)";
-            pill.style.color = "#ffffff";
-            pill.title = "Continuar narración del plan (Ctrl + Alt + P)";
-            if (iconSpan) iconSpan.appendChild(createSvgIcon(PLAY_PATH, 15));
-            if (labelSpan) labelSpan.textContent = "Continuar Plan";
-        } else {
-            pill.style.display = "inline-flex";
-            pill.style.background = "linear-gradient(135deg, rgba(15, 23, 42, 0.94) 0%, rgba(30, 41, 59, 0.94) 100%)";
-            pill.style.border = "1px solid rgba(56, 189, 248, 0.65)";
-            pill.style.boxShadow = "0 4px 18px rgba(14, 165, 233, 0.4)";
-            pill.style.color = "#38bdf8";
-            pill.title = "Escuchar el plan de implementación con voz IA (Ctrl + Alt + P)";
-            if (iconSpan) iconSpan.appendChild(createSvgIcon(SPEAKER_PATH, 15));
-            if (labelSpan) labelSpan.textContent = "Leer Plan (IA)";
-        }
-    }
-
-    function injectArtifactCardButtons() {
+        // Webview artifact cards
         const cards = document.querySelectorAll('.artifact-card');
         cards.forEach(function(card) {
             if (card.querySelector('.agy-inline-plan-btn')) return;
@@ -267,15 +234,6 @@
             s.textContent = "Escuchar Plan";
             btn.appendChild(s);
 
-            btn.addEventListener("mouseenter", function() {
-                btn.style.background = "rgba(14, 165, 233, 0.3)";
-                btn.style.borderColor = "#38bdf8";
-            });
-            btn.addEventListener("mouseleave", function() {
-                btn.style.background = "rgba(14, 165, 233, 0.16)";
-                btn.style.borderColor = "rgba(56, 189, 248, 0.6)";
-            });
-
             btn.addEventListener("click", async function(e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -297,6 +255,99 @@
             });
 
             card.appendChild(btn);
+        });
+    }
+
+    function injectTabPlanButtons() {
+        const tabs = document.querySelectorAll('[data-tab-id*="plan.md"], [data-tab-id*="Plan"], [data-tab-id*="plan"]');
+        tabs.forEach(function(tab) {
+            const parent = tab.parentElement;
+            if (!parent || parent.querySelector('.agy-tab-plan-btn')) return;
+
+            const dataTabId = tab.getAttribute('data-tab-id') || '';
+            let planPath = null;
+            const m = dataTabId.match(/file:\/\/\/?([^"]+)/);
+            if (m) {
+                planPath = decodeURIComponent(decodeURIComponent(m[1]));
+            }
+
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "agy-tab-plan-btn agy-button inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer border-none";
+            btn.style.marginLeft = "8px";
+            btn.style.background = "#0284c7";
+            btn.style.border = "1px solid #38bdf8";
+            btn.style.color = "#ffffff";
+            btn.style.height = "26px";
+            btn.style.boxShadow = "0 1px 3px rgba(0,0,0,0.2)";
+            btn.title = "Escuchar este archivo de plan con voz IA (Ctrl + Alt + P)";
+            btn.appendChild(createSvgIcon(SPEAKER_PATH, 13));
+
+            const lbl = document.createElement("span");
+            lbl.className = "agy-tab-plan-label";
+            lbl.textContent = "Escuchar Plan";
+            btn.appendChild(lbl);
+
+            btn.addEventListener("click", async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (btn.dataset.isBusy === "1") return;
+                btn.dataset.isBusy = "1";
+                setTimeout(function() { delete btn.dataset.isBusy; }, 600);
+                try {
+                    await fetch("http://127.0.0.1:49152/plan/speak", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "toggle", plan_path: planPath, conv_id: getConvId() })
+                    });
+                } catch (err) {}
+            });
+
+            parent.insertBefore(btn, tab.nextSibling);
+        });
+    }
+
+    function injectDocumentPlanButtons() {
+        const mdRoots = document.querySelectorAll('[data-markdown-root]');
+        mdRoots.forEach(function(root) {
+            if (root.querySelector('.agy-doc-plan-btn')) return;
+            const h1 = root.querySelector('h1');
+            if (!h1) return;
+            const txt = (h1.textContent || '').toLowerCase();
+            const isPlan = txt.includes('plan') || txt.includes('implementaci');
+            if (!isPlan) return;
+
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "agy-doc-plan-btn agy-button inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold cursor-pointer border-none my-2";
+            btn.style.background = "#0284c7";
+            btn.style.border = "1px solid #38bdf8";
+            btn.style.color = "#ffffff";
+            btn.style.boxShadow = "0 1px 3px rgba(0,0,0,0.2)";
+            btn.title = "Escuchar este plan con voz IA (Ctrl + Alt + P)";
+            btn.appendChild(createSvgIcon(SPEAKER_PATH, 13));
+
+            const lbl = document.createElement("span");
+            lbl.className = "agy-doc-plan-label";
+            lbl.textContent = "Escuchar Plan";
+            btn.appendChild(lbl);
+
+            btn.addEventListener("click", async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (btn.dataset.isBusy === "1") return;
+                btn.dataset.isBusy = "1";
+                setTimeout(function() { delete btn.dataset.isBusy; }, 600);
+                try {
+                    await fetch("http://127.0.0.1:49152/plan/speak", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "toggle", plan_path: getPlanPath(), conv_id: getConvId() })
+                    });
+                } catch (err) {}
+            });
+
+            h1.parentElement.insertBefore(btn, h1.nextSibling);
         });
     }
 
@@ -352,7 +403,10 @@
     }
 
     function injectButtons() {
+        removeFloatingPlanPill();
         injectArtifactCardButtons();
+        injectTabPlanButtons();
+        injectDocumentPlanButtons();
         injectReviewProceedButtons();
 
         const copyBtns = document.querySelectorAll('button[aria-label="Copy"], button[aria-label="Copied"]');
@@ -505,39 +559,40 @@
             const planUrl = convId ? `http://127.0.0.1:49152/plan/status?conv_id=${encodeURIComponent(convId)}` : 'http://127.0.0.1:49152/plan/status';
             const planRes = await fetch(planUrl);
             const planData = await planRes.json();
-            const pill = getOrCreateFloatingPlanPill();
-            const pState = planData.is_paused ? "paused" : (planData.is_playing ? "playing" : "idle");
-            if (!planData.has_plan) {
-                if (pill) pill.style.display = "none";
-            } else {
-                updatePlanPillUI(pState, planData.is_reading_plan, planData.plan_title);
-            }
+            removeFloatingPlanPill();
+            const planBtns = document.querySelectorAll('.agy-header-plan-btn, .agy-tab-plan-btn, .agy-doc-plan-btn');
+            planBtns.forEach(function(hBtn) {
+                let hLabel = hBtn.querySelector('.agy-header-plan-label, .agy-tab-plan-label, .agy-doc-plan-label, .agy-plan-btn-label');
+                let labelText = "Escuchar Plan";
+                let iconPath = SPEAKER_PATH;
+                let bg = "#0284c7";
+                let border = "#38bdf8";
+                let title = "Escuchar plan de implementación con voz IA (Ctrl + Alt + P)";
 
-            const headerBtns = document.querySelectorAll('.agy-header-plan-btn');
-            headerBtns.forEach(function(hBtn) {
-                const hLabel = hBtn.querySelector('.agy-header-plan-label');
                 if (planData.is_reading_plan && planData.is_playing && !planData.is_paused) {
-                    hBtn.style.background = "#059669";
-                    hBtn.style.borderColor = "#34d399";
-                    hBtn.title = "Pausar narración del plan (Ctrl + Alt + P)";
-                    if (hLabel) hLabel.textContent = "Pausar Plan";
-                    setBtnIcon(hBtn, PAUSE_PATH, 13);
-                    if (hLabel) hBtn.appendChild(hLabel);
+                    bg = "#059669";
+                    border = "#34d399";
+                    title = "Pausar narración del plan (Ctrl + Alt + P)";
+                    labelText = "Pausar Plan";
+                    iconPath = PAUSE_PATH;
                 } else if (planData.is_reading_plan && planData.is_paused) {
-                    hBtn.style.background = "#d97706";
-                    hBtn.style.borderColor = "#fbbf24";
-                    hBtn.title = "Continuar narración del plan (Ctrl + Alt + P)";
-                    if (hLabel) hLabel.textContent = "Continuar Plan";
-                    setBtnIcon(hBtn, PLAY_PATH, 13);
-                    if (hLabel) hBtn.appendChild(hLabel);
-                } else {
-                    hBtn.style.background = "#0284c7";
-                    hBtn.style.borderColor = "#38bdf8";
-                    hBtn.title = "Escuchar plan de implementación con voz IA (Ctrl + Alt + P)";
-                    if (hLabel) hLabel.textContent = "Escuchar Plan";
-                    setBtnIcon(hBtn, SPEAKER_PATH, 13);
-                    if (hLabel) hBtn.appendChild(hLabel);
+                    bg = "#d97706";
+                    border = "#fbbf24";
+                    title = "Continuar narración del plan (Ctrl + Alt + P)";
+                    labelText = "Continuar Plan";
+                    iconPath = PLAY_PATH;
                 }
+
+                hBtn.style.background = bg;
+                hBtn.style.borderColor = border;
+                hBtn.title = title;
+                setBtnIcon(hBtn, iconPath, 13);
+                if (!hLabel) {
+                    hLabel = document.createElement("span");
+                    hLabel.className = "agy-plan-btn-label";
+                }
+                hLabel.textContent = labelText;
+                hBtn.appendChild(hLabel);
             });
         } catch (e) {}
     }, 600);
