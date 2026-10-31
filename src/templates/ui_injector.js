@@ -1,6 +1,6 @@
 (function() {
-    if (window.__agyVoiceBtnVersion === 10) return "already_injected";
-    window.__agyVoiceBtnVersion = 10;
+    if (window.__agyVoiceBtnVersion === 11) return "already_injected";
+    window.__agyVoiceBtnVersion = 11;
     window.__agyVoiceBtnInjected = true;
 
     if (window.__agyVoiceInterval) {
@@ -12,9 +12,10 @@
         window.__agyVoiceObserver = null;
     }
 
-    // Clean up any legacy floating pills and v5 buttons
+    // Clean up any legacy floating pills and rogue buttons
     const oldPill = document.getElementById("agy-floating-plan-pill");
     if (oldPill) oldPill.remove();
+    document.querySelectorAll('.agy-header-plan-btn').forEach(function(b) { b.remove(); });
     document.querySelectorAll('.agy-doc-plan-btn').forEach(function(b) {
         if (!b.querySelector('.agy-doc-plan-label')) b.remove();
     });
@@ -148,17 +149,115 @@
     function removeFloatingPlanPill() {
         const pill = document.getElementById("agy-floating-plan-pill");
         if (pill) pill.remove();
+        document.querySelectorAll('.agy-header-plan-btn').forEach(function(b) { b.remove(); });
+    }
+
+    function isPlanArtifact(dataUri, title, text) {
+        const u = (dataUri || '').toLowerCase();
+        const t = (title || '').toLowerCase().trim();
+        const s = (text || '').toLowerCase().trim();
+
+        // 1. Check URI / filepath: filename MUST contain 'plan' and end with '.md'
+        // Examples: .../implementation_plan.md, .../plan.md, .../migration_plan.md
+        // Excludes: report_*.md, walkthrough.md, notes.md, README.md, etc.
+        const filenameMatch = u.match(/[^/\\?#]+(?=[?#]|$)/);
+        const filename = filenameMatch ? filenameMatch[0] : u;
+        if (filename.includes('plan') && filename.endsWith('.md')) {
+            return true;
+        }
+
+        // 2. Check title or text for explicit plan designation
+        if (t.includes('implementation plan') || t.includes('plan de implementación') || /^#?\s*plan\b/i.test(t)) {
+            return true;
+        }
+        if (s.includes('implementation plan') || s.includes('plan de implementación') || s.startsWith('implementation plan') || s.startsWith('plan de implementación')) {
+            return true;
+        }
+
+        return false;
     }
 
     function injectArtifactCardButtons() {
-        // Antigravity 2.0 artifact list rows
+        // Clean up any buttons inside non-plan artifact cards
+        document.querySelectorAll('.artifact-card').forEach(function(card) {
+            const uriBtn = card.querySelector('[data-uri]');
+            const dataUri = uriBtn ? (uriBtn.getAttribute('data-uri') || '') : '';
+            const text = card.textContent || '';
+            const title = card.getAttribute('title') || '';
+            if (!isPlanArtifact(dataUri, title, text)) {
+                card.querySelectorAll('.agy-inline-plan-btn').forEach(function(b) { b.remove(); });
+            }
+        });
+
+        // Webview artifact cards (rendered in chat when responding with a plan)
+        const cards = document.querySelectorAll('.artifact-card');
+        cards.forEach(function(card) {
+            const uriBtn = card.querySelector('[data-uri]');
+            const dataUri = uriBtn ? (uriBtn.getAttribute('data-uri') || '') : '';
+            const text = card.textContent || '';
+            const title = card.getAttribute('title') || '';
+            if (!isPlanArtifact(dataUri, title, text)) return;
+            if (card.querySelector('.agy-inline-plan-btn')) return;
+
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "agy-inline-plan-btn";
+            btn.style.display = "inline-flex";
+            btn.style.alignItems = "center";
+            btn.style.gap = "6px";
+            btn.style.padding = "3px 10px";
+            btn.style.marginTop = "6px";
+            btn.style.borderRadius = "9999px";
+            btn.style.background = "rgba(14, 165, 233, 0.16)";
+            btn.style.border = "1px solid rgba(56, 189, 248, 0.6)";
+            btn.style.color = "#38bdf8";
+            btn.style.fontSize = "12px";
+            btn.style.fontWeight = "600";
+            btn.style.cursor = "pointer";
+            btn.style.transition = "all 0.15s ease";
+            btn.title = "Escuchar este plan con voz IA (Ctrl + Alt + P)";
+            btn.appendChild(createSvgIcon(SPEAKER_PATH, 13));
+
+            const s = document.createElement("span");
+            s.className = "agy-inline-plan-label";
+            s.textContent = "Escuchar Plan";
+            btn.appendChild(s);
+
+            btn.addEventListener("click", async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (btn.dataset.isBusy === "1") return;
+                btn.dataset.isBusy = "1";
+                setTimeout(function() { delete btn.dataset.isBusy; }, 600);
+
+                let planPath = null;
+                if (dataUri) {
+                    planPath = decodeURIComponent(dataUri.replace(/^file:\/\/\/?/, ''));
+                }
+                try {
+                    await fetch("http://127.0.0.1:49152/plan/speak", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "toggle", plan_path: planPath, conv_id: getConvId() })
+                    });
+                } catch (err) {}
+            });
+
+            card.appendChild(btn);
+        });
+
+        // Antigravity 2.0 sidebar / pane artifact list rows
         const rows = document.querySelectorAll('[data-testid="artifact-row"]');
         rows.forEach(function(row) {
-            if (row.querySelector('.agy-row-plan-btn')) return;
             const text = (row.textContent || '').toLowerCase();
             const title = (row.title || '').toLowerCase();
-            const isPlan = text.includes('plan') || title.includes('plan') || text.includes('.md');
-            if (!isPlan) return;
+            const isPlan = (text.includes('plan') && (text.includes('.md') || text.includes('implementaci'))) ||
+                           (title.includes('plan') && (title.includes('.md') || title.includes('implementaci')));
+            if (!isPlan) {
+                row.querySelectorAll('.agy-row-plan-btn').forEach(function(b) { b.remove(); });
+                return;
+            }
+            if (row.querySelector('.agy-row-plan-btn')) return;
 
             const btn = document.createElement("span");
             btn.className = "agy-row-plan-btn";
@@ -200,76 +299,25 @@
 
             row.appendChild(btn);
         });
-
-        // Webview artifact cards
-        const cards = document.querySelectorAll('.artifact-card');
-        cards.forEach(function(card) {
-            if (card.querySelector('.agy-inline-plan-btn')) return;
-            const uriBtn = card.querySelector('[data-uri]');
-            const dataUri = uriBtn ? (uriBtn.getAttribute('data-uri') || '') : '';
-            const text = (card.textContent || '').toLowerCase();
-            const isPlan = dataUri.toLowerCase().includes('plan') || text.includes('plan') || dataUri.toLowerCase().endsWith('.md');
-            if (!isPlan) return;
-
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.className = "agy-inline-plan-btn";
-            btn.style.display = "inline-flex";
-            btn.style.alignItems = "center";
-            btn.style.gap = "6px";
-            btn.style.padding = "3px 10px";
-            btn.style.marginTop = "6px";
-            btn.style.borderRadius = "9999px";
-            btn.style.background = "rgba(14, 165, 233, 0.16)";
-            btn.style.border = "1px solid rgba(56, 189, 248, 0.6)";
-            btn.style.color = "#38bdf8";
-            btn.style.fontSize = "12px";
-            btn.style.fontWeight = "600";
-            btn.style.cursor = "pointer";
-            btn.style.transition = "all 0.15s ease";
-            btn.title = "Escuchar este plan con voz IA (Ctrl + Alt + P)";
-            btn.appendChild(createSvgIcon(SPEAKER_PATH, 13));
-
-            const s = document.createElement("span");
-            s.textContent = "Escuchar Plan";
-            btn.appendChild(s);
-
-            btn.addEventListener("click", async function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (btn.dataset.isBusy === "1") return;
-                btn.dataset.isBusy = "1";
-                setTimeout(function() { delete btn.dataset.isBusy; }, 600);
-
-                let planPath = null;
-                if (dataUri) {
-                    planPath = decodeURIComponent(dataUri.replace(/^file:\/\/\/?/, ''));
-                }
-                try {
-                    await fetch("http://127.0.0.1:49152/plan/speak", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action: "toggle", plan_path: planPath, conv_id: getConvId() })
-                    });
-                } catch (err) {}
-            });
-
-            card.appendChild(btn);
-        });
     }
 
     function injectTabPlanButtons() {
-        const tabs = document.querySelectorAll('[data-tab-id*="plan.md"], [data-tab-id*="Plan"], [data-tab-id*="plan"]');
+        const tabs = document.querySelectorAll('[data-tab-id*="plan.md"], [data-tab-id*="Plan.md"], [data-tab-id*="implementation_plan"]');
         tabs.forEach(function(tab) {
-            const parent = tab.parentElement;
-            if (!parent || parent.querySelector('.agy-tab-plan-btn')) return;
-
             const dataTabId = tab.getAttribute('data-tab-id') || '';
             let planPath = null;
             const m = dataTabId.match(/file:\/\/\/?([^"]+)/);
             if (m) {
                 planPath = decodeURIComponent(decodeURIComponent(m[1]));
             }
+            if (!planPath || !planPath.toLowerCase().includes('plan') || !planPath.toLowerCase().endsWith('.md')) {
+                const existing = tab.parentElement && tab.parentElement.querySelector('.agy-tab-plan-btn');
+                if (existing) existing.remove();
+                return;
+            }
+
+            const parent = tab.parentElement;
+            if (!parent || parent.querySelector('.agy-tab-plan-btn')) return;
 
             const btn = document.createElement("button");
             btn.type = "button";
@@ -310,12 +358,19 @@
     function injectDocumentPlanButtons() {
         const mdRoots = document.querySelectorAll('[data-markdown-root]');
         mdRoots.forEach(function(root) {
-            if (root.querySelector('.agy-doc-plan-btn')) return;
             const h1 = root.querySelector('h1');
-            if (!h1) return;
-            const txt = (h1.textContent || '').toLowerCase();
-            const isPlan = txt.includes('plan') || txt.includes('implementaci');
-            if (!isPlan) return;
+            const planPath = (getPlanPath() || '').toLowerCase();
+            const txt = h1 ? (h1.textContent || '').toLowerCase() : '';
+            const isPlan = (planPath.includes('plan') && planPath.endsWith('.md')) ||
+                           txt.includes('plan de implementación') ||
+                           txt.includes('implementation plan') ||
+                           /^#?\s*plan\s*[:-]/i.test(txt);
+
+            if (!isPlan) {
+                root.querySelectorAll('.agy-doc-plan-btn').forEach(function(b) { b.remove(); });
+                return;
+            }
+            if (!h1 || root.querySelector('.agy-doc-plan-btn')) return;
 
             const btn = document.createElement("button");
             btn.type = "button";
@@ -351,63 +406,11 @@
         });
     }
 
-    function injectReviewProceedButtons() {
-        const candidates = document.querySelectorAll('.review-button, button');
-        candidates.forEach(function(btn) {
-            const txt = (btn.textContent || '').trim();
-            if (!/^(Review|Proceed|Review\s*v)$/i.test(txt)) return;
-            const parent = btn.parentElement;
-            if (!parent || parent.querySelector('.agy-header-plan-btn')) return;
-
-            const agyBtn = document.createElement("button");
-            agyBtn.type = "button";
-            agyBtn.className = "agy-header-plan-btn agy-button agy-button-xs inline-flex items-center font-medium transition-colors select-none outline-none cursor-pointer justify-center border-none h-6 text-xs rounded-md gap-1 px-2.5 mr-2";
-            agyBtn.style.display = "inline-flex";
-            agyBtn.style.alignItems = "center";
-            agyBtn.style.gap = "5px";
-            agyBtn.style.padding = "3px 10px";
-            agyBtn.style.marginRight = "6px";
-            agyBtn.style.marginLeft = "2px";
-            agyBtn.style.borderRadius = "6px";
-            agyBtn.style.background = "#0284c7";
-            agyBtn.style.border = "1px solid #38bdf8";
-            agyBtn.style.color = "#ffffff";
-            agyBtn.style.fontSize = "12px";
-            agyBtn.style.fontWeight = "600";
-            agyBtn.style.cursor = "pointer";
-            agyBtn.title = "Escuchar plan de implementación con voz IA (Ctrl + Alt + P)";
-            agyBtn.appendChild(createSvgIcon(SPEAKER_PATH, 13));
-
-            const label = document.createElement("span");
-            label.className = "agy-header-plan-label";
-            label.textContent = "Escuchar Plan";
-            agyBtn.appendChild(label);
-
-            agyBtn.addEventListener("click", async function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (agyBtn.dataset.isBusy === "1") return;
-                agyBtn.dataset.isBusy = "1";
-                setTimeout(function() { delete agyBtn.dataset.isBusy; }, 600);
-                try {
-                    await fetch("http://127.0.0.1:49152/plan/speak", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action: "toggle", plan_path: getPlanPath(), conv_id: getConvId() })
-                    });
-                } catch (err) {}
-            });
-
-            parent.insertBefore(agyBtn, btn);
-        });
-    }
-
     function injectButtons() {
         removeFloatingPlanPill();
         injectArtifactCardButtons();
         injectTabPlanButtons();
         injectDocumentPlanButtons();
-        injectReviewProceedButtons();
 
         const copyBtns = document.querySelectorAll('button[aria-label="Copy"], button[aria-label="Copied"]');
         copyBtns.forEach(function(copyBtn) {
@@ -560,9 +563,9 @@
             const planRes = await fetch(planUrl);
             const planData = await planRes.json();
             removeFloatingPlanPill();
-            const planBtns = document.querySelectorAll('.agy-header-plan-btn, .agy-tab-plan-btn, .agy-doc-plan-btn');
+            const planBtns = document.querySelectorAll('.agy-tab-plan-btn, .agy-doc-plan-btn, .agy-inline-plan-btn');
             planBtns.forEach(function(hBtn) {
-                let hLabel = hBtn.querySelector('.agy-header-plan-label, .agy-tab-plan-label, .agy-doc-plan-label, .agy-plan-btn-label');
+                let hLabel = hBtn.querySelector('.agy-tab-plan-label, .agy-doc-plan-label, .agy-inline-plan-label, .agy-plan-btn-label');
                 let labelText = "Escuchar Plan";
                 let iconPath = SPEAKER_PATH;
                 let bg = "#0284c7";
